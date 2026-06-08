@@ -1,0 +1,12 @@
+name: ${task_name}-${setting}-${expert_data_num}
+
+shape_meta: &shape_meta
+  obs:
+    rgb:
+      shape: [3, 240, 320]
+      type: rgb
+    agent_pos:
+      shape: [14]
+      type: low_dim
+  action:
+    shape: [14]

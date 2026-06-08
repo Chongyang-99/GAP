@@ -1,0 +1,18 @@
+# Deployment configuration for GAP
+policy_name: GAP
+task_name: place_dual_shoes
+task_config: demo_clean
+ckpt_setting: demo_clean
+expert_data_num: 100
+seed: 0
+checkpoint_num: 100
+instruction_type: unseen
+
+# Model paths (checkpoint path will be auto-constructed if not specified)
+ckpt_path: null
+
+# Device
+device: cuda
+
+# Debug mode
+debug: false

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.env
+.venv/
+venv/
+env/
+
+# Experiment outputs
+checkpoints/
+data/
+data_smoke/
+eval_result/
+results/
+logs/
+wandb/
+outputs/
+multirun/
+
+# Large model/data artifacts
+*.ckpt
+*.pth
+*.pt
+*.safetensors
+*.zarr/
+*.hdf5
+*.mp4
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

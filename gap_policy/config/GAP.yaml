@@ -1,0 +1,149 @@
+defaults:
+  - task: demo_task
+
+name: GAP
+
+task_name: null
+shape_meta: ${task.shape_meta}
+exp_name: "GAP"
+
+horizon: 20
+n_obs_steps: 1
+n_action_steps: 20
+n_latency_steps: 0
+observation_chunk: 20
+interval: 5
+model_3d: pi3
+dataset_obs_steps: ${n_obs_steps}
+use_pi3_features: true
+
+policy:
+  _target_: gap_policy.policy.gap.GAPPolicy
+
+  # DinoV3 config
+  dinov3_model_name: "dinov3_vitl16"  # dinov3_vitl16, dinov3_vitg16, etc.
+  dinov3_freeze: false
+  dinov3_repo_dir: "thirdparty/dinov3"  # Local repo directory
+  dinov3_weights_path: "pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"  # Pretrained weights
+
+  # Pi3 config
+  use_pi3_features: ${use_pi3_features}
+  pi3_model_name_or_path: "pretrained/Pi3"
+  pi3_feature_dim: 1024
+  pi3_num_views: 1
+  pi3_embed_dim: 1024
+
+  # State encoder config
+  state_dim: 14
+  state_embed_dim: 1024  # Must match DinoV3 embed_dim (1024 for vitl16)
+
+  # Transformer decoder config (for denoising)
+  decoder_depth: 4
+  decoder_heads: 8
+  decoder_dim_feedforward: 3200
+  decoder_dropout: 0.1
+
+  horizon: ${horizon}
+  n_action_steps: ${n_action_steps}
+  n_obs_steps: ${n_obs_steps}
+
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddim.DDIMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: True
+    set_alpha_to_one: True
+    steps_offset: 0
+    prediction_type: sample  # predict clean sample (not noise!)
+
+  num_inference_steps: 10
+  shape_meta: ${shape_meta}
+
+
+ema:
+  _target_: gap_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+dataloader:
+  batch_size: 64  # Smaller batch size for large vision models
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: True
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: False
+  pin_memory: True
+  persistent_workers: True
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: False
+  resume: True
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  num_epochs: 900
+  gradient_accumulate_every: 1
+  use_ema: True
+  rollout_every: 150
+  checkpoint_every: 150
+  val_every: 150
+  sample_every: 20
+  max_train_steps: null
+  max_val_steps: null
+  tqdm_interval_sec: 1.0
+
+logging:
+  group: ${exp_name}
+  id: null
+  mode: online
+  name: ${exp_name}
+  project: RoboTwin_GAP
+  resume: true
+  tags:
+  - RoboTwin
+  - GAP
+
+checkpoint:
+  save_ckpt: True
+  topk:
+    monitor_key: train_loss
+    mode: min
+    k: 5
+    format_str: 'epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+checkpoint_num: 200
+expert_data_num: 100
+raw_task_name: none
+setting: none
