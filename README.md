@@ -1,60 +1,226 @@
-# GAP
+# GAP: Action-Geometry Prediction
 
-本仓库包含论文 `Action-Geometry Prediction with 3D Geometric Prior for Bimanual Manipulation` 对应的 GAP policy 代码。该 policy 使用 DINOv3 图像 token 和 Pi3 point-map token，并通过 Point Map Prediction 辅助目标训练动作扩散策略。
-源码包名统一为 `gap_policy`，对外模型类名统一为 `GAPPolicy`。
+Official implementation of **Action-Geometry Prediction with 3D Geometric Prior for Bimanual Manipulation**, accepted to **CVPR 2026**.
 
-## 目录
+[![arXiv](https://img.shields.io/badge/arXiv-2602.23814-b31b1b.svg)](https://arxiv.org/abs/2602.23814)
+[![Project](https://img.shields.io/badge/Homepage-Chongyang%20Xu-blue)](https://chongyang-99.github.io/)
+[![Code](https://img.shields.io/badge/Code-GAP-black?logo=github)](https://github.com/Chongyang-99/GAP)
 
-- `scripts/process_data.py`: 从 RoboTwin 原始 HDF5 episode 中提取 DINOv3 与 Pi3 特征并写入 zarr。
-- `scripts/train.py`: 训练 DINOv3 + Pi3 PMP 扩散策略。
-- `deploy_policy.py`: RoboTwin 评估时加载 checkpoint 并输出动作。
-- `gap_policy/`: GAP 策略网络、数据集和训练配置。
-- `thirdparty/dinov3/`: DINOv3 backbone 推理所需的最小本地代码。
-- `thirdparty/pi3/`: Pi3 Python 包子集；模型权重从 `pretrained/Pi3/` 加载。
+**Chongyang Xu, Haipeng Li, Shen Cheng, Haoqiang Fan, Ziliang Feng, Shuaicheng Liu**
 
-## 外部文件
+GAP is a bimanual manipulation policy that reasons over RGB observations with a 3D geometric prior. The policy fuses DINOv3 visual tokens, Pi3 geometry-aware point-map tokens, and robot proprioception, then uses a diffusion decoder to predict both the next action chunk and a future 3D latent target. This action-geometry prediction objective encourages the policy to understand where the scene is going, not only which motor command should come next.
 
-以下大文件不放入 git，需要在运行前放到本仓库的 `pretrained/` 目录；当前复现实验中的大小约为 Pi3 `3.6G`、DINOv3 ViT-L `1.2G`，合计约 `4.8G`。
+## Highlights
 
-- DINOv3 权重：`pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth`。
-- Pi3 权重：`pretrained/Pi3/`，即完整 Hugging Face 模型目录。
+- **RGB-only 3D reasoning.** GAP uses a pretrained 3D geometric foundation model to obtain geometry-aware latents without requiring explicit depth sensors or point-cloud inputs.
+- **Joint action and geometry prediction.** The policy predicts future actions together with future 3D point-map latents, providing an auxiliary objective aligned with bimanual manipulation.
+- **RoboTwin-compatible release.** The repository keeps RoboTwin as an external dependency and runs evaluation through a local GAP wrapper, so users do not need to modify the official RoboTwin codebase.
+- **Reproducible scripts.** Data preprocessing, training, checkpoint loading, and evaluation are exposed through short shell entry points.
 
-可直接运行下载脚本：
+## Repository Layout
+
+```text
+GAP/
+├── deploy_policy.py              # Policy wrapper used by RoboTwin evaluation
+├── deploy_policy.yml             # Default evaluation config
+├── process_data.sh               # Feature extraction entry point
+├── train.sh                      # Training entry point
+├── eval.sh                       # RoboTwin evaluation entry point
+├── gap_policy/                   # GAP policy, dataset, diffusion modules, configs
+├── scripts/
+│   ├── process_data.py           # HDF5 episodes -> GAP zarr features
+│   ├── train.py                  # Hydra training script
+│   └── eval_policy.py            # GAP-local copy of RoboTwin eval runner
+├── thirdparty/
+│   ├── dinov3/                   # DINOv3 inference code used by GAP
+│   └── pi3/                      # Pi3 model code subset used by GAP
+└── pretrained/
+    └── download_weights.sh       # Downloads external pretrained weights
+```
+
+The `thirdparty/` directory contains the code needed for inference. Large pretrained weights are not tracked by git.
+
+## Prerequisites
+
+GAP is designed to run inside a working RoboTwin environment. Please first install RoboTwin following its official instructions and verify that the simulator can run a standard policy evaluation.
+
+After activating the RoboTwin environment, clone this repository:
+
+```bash
+git clone https://github.com/Chongyang-99/GAP.git
+cd GAP
+export ROBOTWIN_ROOT=/path/to/RoboTwin
+```
+
+`ROBOTWIN_ROOT` must point to the complete RoboTwin root directory and contain `script/eval_policy.py`.
+
+## Pretrained Weights
+
+GAP expects all pretrained weights under `pretrained/`:
+
+```text
+pretrained/
+├── Pi3/
+│   ├── config.json
+│   └── model.safetensors or pytorch_model.bin
+└── dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
+```
+
+Download them with:
 
 ```bash
 bash pretrained/download_weights.sh
 ```
 
-脚本默认从 Hugging Face 下载 Pi3，并下载 GAP 依赖的 DINOv3 `.pth` 权重。若访问 gated 模型或需要更高限速，先设置 `HF_TOKEN`；若要使用自己的 DINOv3 下载地址，设置 `DINOV3_WEIGHTS_URL`。
+The script downloads Pi3 from Hugging Face and the DINOv3 ViT-L checkpoint used by GAP. If Hugging Face access requires authentication, set `HF_TOKEN` before running the script. The expected weight size is about 4.8 GB in total, so these files are intentionally ignored by git.
 
-其他外部文件：
-
-- RoboTwin 原始数据：默认读取 `${ROBOTWIN_ROOT}/data/<task>/<task_config>/data/episode*.hdf5`；也可通过 `RAW_DATA_ROOT` 覆盖。
-- 训练 checkpoint：默认写入 `checkpoints/<task>_<setting>_<expert_data_num>/<epoch>.ckpt`。
-
-## 常用命令
-
-在本仓库内运行预处理、训练和评估。评估时设置 `ROBOTWIN_ROOT` 指向完整 RoboTwin 根目录；GAP 会调用本仓库的 `scripts/eval_policy.py` 适配输出路径，并把当前 GAP 仓库加入 Python import 路径，不需要修改官方 RoboTwin。
+Useful overrides:
 
 ```bash
-cd GAP
-export ROBOTWIN_ROOT=/path/to/RoboTwin
-bash process_data.sh place_dual_shoes demo_clean 100 0
-bash train.sh place_dual_shoes demo_clean 100 0 0 32 300 100
-bash eval.sh place_dual_shoes demo_clean demo_clean 100 300 0 "0"
+export GAP_PRETRAINED_ROOT=/path/to/pretrained
+export PI3_MODEL_NAME_OR_PATH=/path/to/pretrained/Pi3
+export DINOV3_WEIGHTS_PATH=/path/to/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
+export DINOV3_REPO_DIR=/path/to/GAP/thirdparty/dinov3
 ```
 
-`process_data.sh` 支持通过环境变量覆盖路径：
+## Data Preparation
 
-- `ROBOTWIN_ROOT`: 完整 RoboTwin 根目录，评估必需；预处理时默认从 `${ROBOTWIN_ROOT}/data` 读原始数据。
-- `RAW_DATA_ROOT`: RoboTwin 原始数据根目录，优先级高于 `ROBOTWIN_ROOT` 默认数据路径。
-- `OUTPUT_ROOT`: 预处理后 zarr 输出目录，默认 `./data`。
-- `GAP_PRETRAINED_ROOT`: 统一预训练权重目录，默认 `pretrained`。
-- `PI3_MODEL_NAME_OR_PATH`: Pi3 本地模型目录，默认 `pretrained/Pi3`。
-- `PI3_REPO`: 下载脚本使用的 Pi3 Hugging Face repo，默认 `yyfz233/Pi3`。
-- `DINOV3_REPO`: 下载脚本使用的 DINOv3 `.pth` 权重 repo。
-- `DINOV3_WEIGHTS_URL`: 直接指定 DINOv3 `.pth` 下载地址，优先级高于 `DINOV3_REPO`。
-- `DINOV3_REPO_DIR`: DINOv3 本地代码目录，默认 `thirdparty/dinov3`。
-- `DINOV3_WEIGHTS_PATH`: DINOv3 权重路径。
+GAP reads RoboTwin demonstration episodes from:
 
-评估脚本会检查 `ROBOTWIN_ROOT/script/eval_policy.py` 和 checkpoint 是否存在，缺失时会直接停止。默认 checkpoint 路径为当前仓库下的 `checkpoints/<task>_<setting>_<expert_data_num>/<epoch>.ckpt`；如果这里不存在，会继续查找 `${ROBOTWIN_ROOT}/policy/GAP/checkpoints/<task>_<setting>_<expert_data_num>/<epoch>.ckpt`。也可通过 `CKPT_PATH` 指定绝对路径。
+```text
+${ROBOTWIN_ROOT}/data/<task_name>/<task_config>/data/episode*.hdf5
+```
+
+For the demo-clean setting used in our experiments, preprocess one task with:
+
+```bash
+bash process_data.sh place_dual_shoes demo_clean 100 0
+```
+
+Arguments:
+
+```text
+process_data.sh <task_name> <task_config> <expert_data_num> <gpu_id>
+```
+
+The script extracts DINOv3 and Pi3 features and saves a zarr dataset to:
+
+```text
+data/<task_name>-<task_config>-<expert_data_num>-pi3-20-5.zarr
+```
+
+You can redirect input or output locations without modifying RoboTwin:
+
+```bash
+export RAW_DATA_ROOT=/path/to/robotwin/data
+export OUTPUT_ROOT=/path/to/gap/data
+```
+
+## Training
+
+Train GAP on the preprocessed demonstrations:
+
+```bash
+bash train.sh place_dual_shoes demo_clean 100 0 0 32 300 100
+```
+
+Arguments:
+
+```text
+train.sh <task_name> <task_config> <expert_data_num> <seed> <gpu_id> <batch_size> <num_epochs> <checkpoint_every>
+```
+
+Checkpoints are saved to:
+
+```text
+checkpoints/<task_name>_<task_config>_<expert_data_num>/<epoch>.ckpt
+```
+
+By default, logging uses offline Weights & Biases mode. To change it:
+
+```bash
+export WANDB_MODE=online
+```
+
+## Evaluation
+
+Evaluate a trained checkpoint in RoboTwin:
+
+```bash
+export ROBOTWIN_ROOT=/path/to/RoboTwin
+bash eval.sh place_dual_shoes demo_clean demo_clean 100 100 0 "0"
+```
+
+Arguments:
+
+```text
+eval.sh <task_name> <task_config> <ckpt_setting> <expert_data_num> <checkpoint_num> <gpu_id> <seeds>
+```
+
+The default checkpoint path is:
+
+```text
+checkpoints/<task_name>_<ckpt_setting>_<expert_data_num>/<checkpoint_num>.ckpt
+```
+
+To evaluate a specific checkpoint:
+
+```bash
+export CKPT_PATH=/path/to/checkpoint.ckpt
+bash eval.sh place_dual_shoes demo_clean demo_clean 100 100 0 "0"
+```
+
+Evaluation results are written inside this GAP repository:
+
+```text
+results/<task_name>/GAP/<task_config>/<ckpt_setting>/seed_<seed>/<checkpoint_num>/_result.txt
+```
+
+Set `RESULTS_ROOT` to use another output directory:
+
+```bash
+export RESULTS_ROOT=/path/to/results
+```
+
+## Configuration
+
+The main training config is:
+
+```text
+gap_policy/config/GAP.yaml
+```
+
+Important options:
+
+- `policy.dinov3_repo_dir`: local DINOv3 code path.
+- `policy.dinov3_weights_path`: DINOv3 checkpoint path.
+- `policy.pi3_model_name_or_path`: Pi3 checkpoint directory.
+- `observation_chunk`: temporal observation window, default `20`.
+- `interval`: temporal sampling interval, default `5`.
+- `model_3d`: 3D backbone name, currently `pi3`.
+
+## Notes on RoboTwin Integration
+
+GAP intentionally treats RoboTwin as an external environment:
+
+- preprocessing reads official RoboTwin HDF5 demonstrations;
+- evaluation changes into `ROBOTWIN_ROOT` so RoboTwin task configs and simulator imports resolve normally;
+- GAP uses `scripts/eval_policy.py` in this repository to support repository-local result paths;
+- no files inside the official RoboTwin repository need to be edited.
+
+## Citation
+
+If you find this repository useful, please cite:
+
+```bibtex
+@inproceedings{xu2026gap,
+  title={Action-Geometry Prediction with 3D Geometric Prior for Bimanual Manipulation},
+  author={Xu, Chongyang and Li, Haipeng and Cheng, Shen and Fan, Haoqiang and Feng, Ziliang and Liu, Shuaicheng},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  year={2026}
+}
+```
+
+## Acknowledgements
+
+We thank the authors of [Pi3](https://github.com/yyfz/Pi3), [RoboTwin](https://github.com/RoboTwin-Platform/RoboTwin), and Xu et al.'s [Diffusion-Based Imaginative Coordination](https://github.com/return-sleep/Diffusion_based_imaginative_Coordination) repository for releasing their excellent codebases. GAP builds on RoboTwin for bimanual manipulation evaluation, uses Pi3 for 3D geometric representation, and benefits from Xu et al.'s open-source bimanual policy implementation.
