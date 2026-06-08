@@ -6,7 +6,9 @@ Official implementation of **Action-Geometry Prediction with 3D Geometric Prior 
 [![Project](https://img.shields.io/badge/Homepage-Chongyang%20Xu-blue)](https://chongyang-99.github.io/)
 [![Code](https://img.shields.io/badge/Code-GAP-black?logo=github)](https://github.com/Chongyang-99/GAP)
 
-**[Chongyang Xu](https://chongyang-99.github.io/), [Haipeng Li](https://lhaippp.github.io/), [Shen Cheng](https://scholar.google.com/citations?user=gBE3HvwAAAAJ&hl=en), [Haoqiang Fan](https://scholar.google.com/citations?user=bzzBut4AAAAJ&hl=en), Ziliang Feng, [Shuaicheng Liu](http://www.liushuaicheng.org/)**
+**[Chongyang Xu](https://chongyang-99.github.io/), [Haipeng Li](https://lhaippp.github.io/), [Shen Cheng](https://scholar.google.com/citations?user=gBE3HvwAAAAJ&hl=en), [Haoqiang Fan](https://scholar.google.com/citations?user=bzzBut4AAAAJ&hl=en), [Ziliang Feng](https://cs.scu.edu.cn/info/1279/13685.htm), [Shuaicheng Liu](http://www.liushuaicheng.org/)<sup>†</sup>**
+
+<sup>†</sup> Corresponding author.
 
 GAP is a bimanual manipulation policy that reasons over RGB observations with a 3D geometric prior. The policy fuses DINOv3 visual tokens, Pi3 geometry-aware point-map tokens, and robot proprioception, then uses a diffusion decoder to predict both the next action chunk and a future 3D latent target. This action-geometry prediction objective encourages the policy to understand where the scene is going, not only which motor command should come next.
 
