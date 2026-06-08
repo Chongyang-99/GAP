@@ -10,6 +10,12 @@ Official implementation of **Action-Geometry Prediction with 3D Geometric Prior 
 
 <sup>†</sup> Corresponding author.
 
+## News
+
+- **2026-06-08:** GAP code, preprocessing scripts, training pipeline, and RoboTwin evaluation wrapper are released.
+- **2026-02-27:** The paper is available on [arXiv](https://arxiv.org/abs/2602.23814).
+- **2026-02:** GAP is accepted to **CVPR 2026**.
+
 GAP is a bimanual manipulation policy that reasons over RGB observations with a 3D geometric prior. The policy fuses DINOv3 visual tokens, Pi3 geometry-aware point-map tokens, and robot proprioception, then uses a diffusion decoder to predict both the next action chunk and a future 3D latent target. This action-geometry prediction objective encourages the policy to understand where the scene is going, not only which motor command should come next.
 
 ## Highlights
