@@ -62,6 +62,10 @@ export ROBOTWIN_ROOT=/path/to/RoboTwin
 
 `ROBOTWIN_ROOT` must point to the complete RoboTwin root directory and contain `script/eval_policy.py`.
 
+## Robot Embodiment
+
+The simulation experiments use RoboTwin's AgileX bimanual embodiment by default, i.e., the ALOHA-AgileX robot model provided in RoboTwin.
+
 ## Pretrained Weights
 
 GAP expects all pretrained weights under `pretrained/`:
